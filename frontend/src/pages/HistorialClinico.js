@@ -18,13 +18,26 @@ import axios from "axios";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+const CAMPOS_FOTOS_ANTES = ["foto_antes1", "foto_antes2", "foto_antes3"];
+const CAMPOS_FOTOS_DESPUES = ["foto_despues1", "foto_despues2", "foto_despues3"];
+const CAMPOS_FOTOS_LEGACY = [
+  "foto_izquierda",
+  "foto_frontal",
+  "foto_derecha",
+  "foto_extra1",
+  "foto_extra2",
+  "foto_extra3",
+];
+
 const HistorialClinico = () => {
   const [pacientes, setPacientes] = useState([]);
   const [filtro, setFiltro] = useState("");
   const [pacienteSeleccionado, setPacienteSeleccionado] = useState(null);
   const [tratamientos, setTratamientos] = useState([]);
-  const [fotos, setFotos] = useState([]);
-  const [previews, setPreviews] = useState([]);
+  const [fotosAntes, setFotosAntes] = useState([]);
+  const [fotosDespues, setFotosDespues] = useState([]);
+  const [previewsAntes, setPreviewsAntes] = useState([]);
+  const [previewsDespues, setPreviewsDespues] = useState([]);
   const [tratamientoSeleccionado, setTratamientoSeleccionado] = useState(null);
 
   useEffect(() => {
@@ -36,7 +49,7 @@ const HistorialClinico = () => {
 
   const cargarHistorial = async (id) => {
     try {
-      const paciente = pacientes.find((p) => p.id === id);
+      const paciente = pacientes.find((p) => p.id === id) || null;
       setPacienteSeleccionado(paciente);
       const res = await axios.get(
         `http://localhost:4000/api/tratamientos/historial/${id}`
@@ -47,17 +60,29 @@ const HistorialClinico = () => {
     }
   };
 
-  const manejarCambioFotos = (e) => {
-    const archivos = Array.from(e.target.files);
-    setFotos(archivos);
-    const urls = archivos.map((f) => URL.createObjectURL(f));
-    setPreviews(urls);
+  const manejarCambioFotos = (tipo) => (e) => {
+    const archivos = Array.from(e.target.files || []);
+    if (archivos.length > 3) {
+      alert("Solo puedes subir hasta 3 fotos en esta sección");
+    }
+    const seleccionados = archivos.slice(0, 3);
+
+    if (tipo === "antes") {
+      setFotosAntes(seleccionados);
+      setPreviewsAntes(seleccionados.map((f) => URL.createObjectURL(f)));
+    } else {
+      setFotosDespues(seleccionados);
+      setPreviewsDespues(seleccionados.map((f) => URL.createObjectURL(f)));
+    }
   };
 
   const subirFotos = async (tratamientoId) => {
-    if (!fotos.length) return alert("📸 Selecciona las fotos primero");
+    if (!fotosAntes.length && !fotosDespues.length)
+      return alert("📸 Selecciona fotos de antes o después para subir");
+
     const data = new FormData();
-    fotos.forEach((f) => data.append("fotos", f));
+    fotosAntes.forEach((f) => data.append("fotosAntes", f));
+    fotosDespues.forEach((f) => data.append("fotosDespues", f));
 
     try {
       await axios.post(
@@ -66,8 +91,10 @@ const HistorialClinico = () => {
         { headers: { "Content-Type": "multipart/form-data" } }
       );
       alert("✅ Fotos agregadas correctamente");
-      setFotos([]);
-      setPreviews([]);
+      setFotosAntes([]);
+      setFotosDespues([]);
+      setPreviewsAntes([]);
+      setPreviewsDespues([]);
       setTratamientoSeleccionado(null);
       cargarHistorial(pacienteSeleccionado.id);
     } catch (err) {
@@ -88,6 +115,8 @@ const HistorialClinico = () => {
   );
 
   const generarPDF = async () => {
+    if (!pacienteSeleccionado) return;
+
     const doc = new jsPDF("p", "pt", "a4");
     const logo = "/images/logo-showclinic.png";
     const img = new Image();
@@ -182,6 +211,33 @@ const HistorialClinico = () => {
     );
     doc.save(`Historial_${p.nombre}_${p.apellido}.pdf`);
   };
+
+  const renderMiniaturas = (keys, tratamiento) => (
+    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 0.5 }}>
+      {keys.map(
+        (key, i) =>
+          tratamiento[key] && (
+            <a
+              key={`${key}-${i}`}
+              href={`http://localhost:4000/uploads/${tratamiento[key]}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <img
+                src={`http://localhost:4000/uploads/${tratamiento[key]}`}
+                width={70}
+                alt={key}
+                style={{
+                  borderRadius: 6,
+                  border: "1px solid #ccc",
+                  cursor: "pointer",
+                }}
+              />
+            </a>
+          )
+      )}
+    </Box>
+  );
 
   return (
     <div
@@ -337,94 +393,146 @@ const HistorialClinico = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {tratamientos.map((t) => (
-                        <TableRow key={t.id}>
-                          <TableCell>{t.fecha?.split(" ")[0]}</TableCell>
-                          <TableCell>{t.nombreTratamiento}</TableCell>
-                          <TableCell>{t.tipoAtencion}</TableCell>
-                          <TableCell>{t.especialista}</TableCell>
-                          <TableCell>S/ {(t.precio_total || 0).toFixed(2)}</TableCell>
-                          <TableCell>{t.descuento}</TableCell>
-                          <TableCell>{t.pagoMetodo}</TableCell>
-                          <TableCell>{t.sesion}</TableCell>
+                      {tratamientos.map((t) => {
+                        const tieneFotosAntes = CAMPOS_FOTOS_ANTES.some((key) => t[key]);
+                        const tieneFotosDespues = CAMPOS_FOTOS_DESPUES.some((key) => t[key]);
+                        const tieneFotosLegacy = CAMPOS_FOTOS_LEGACY.some((key) => t[key]);
+                        const tieneFotos = tieneFotosAntes || tieneFotosDespues || tieneFotosLegacy;
 
-                          <TableCell>
-                            {t.foto_izquierda || t.foto_frontal || t.foto_derecha ? (
-                              <Box sx={{ display: "flex", gap: 1 }}>
-                                {["foto_izquierda", "foto_frontal", "foto_derecha"].map(
-                                  (key, i) =>
-                                    t[key] && (
-                                      <a
-                                        key={i}
-                                        href={`http://localhost:4000/uploads/${t[key]}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                      >
-                                        <img
-                                          src={`http://localhost:4000/uploads/${t[key]}`}
-                                          width={70}
-                                          alt={key}
-                                          style={{
-                                            borderRadius: 6,
-                                            border: "1px solid #ccc",
-                                            cursor: "pointer",
-                                          }}
-                                        />
-                                      </a>
-                                    )
-                                )}
-                              </Box>
-                            ) : tratamientoSeleccionado === t.id ? (
-                              <Box>
-                                <input
-                                  type="file"
-                                  multiple
-                                  accept="image/*"
-                                  onChange={manejarCambioFotos}
-                                />
-                                <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
-                                  {previews.map((src, idx) => (
-                                    <img
-                                      key={idx}
-                                      src={src}
-                                      alt="preview"
-                                      width={70}
-                                      style={{
-                                        borderRadius: "6px",
-                                        border: "1px solid #ccc",
-                                      }}
-                                    />
-                                  ))}
+                        return (
+                          <TableRow key={t.id}>
+                            <TableCell>{t.fecha?.split(" ")[0]}</TableCell>
+                            <TableCell>{t.nombreTratamiento}</TableCell>
+                            <TableCell>{t.tipoAtencion}</TableCell>
+                            <TableCell>{t.especialista}</TableCell>
+                            <TableCell>S/ {(t.precio_total || 0).toFixed(2)}</TableCell>
+                            <TableCell>{t.descuento}</TableCell>
+                            <TableCell>{t.pagoMetodo}</TableCell>
+                            <TableCell>{t.sesion}</TableCell>
+
+                            <TableCell>
+                              {tieneFotos && (
+                                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mb: 1 }}>
+                                  <Box>
+                                    <Typography variant="body2" fontWeight="bold" color="#a36920">
+                                      ANTES
+                                    </Typography>
+                                    {tieneFotosAntes ? (
+                                      renderMiniaturas(CAMPOS_FOTOS_ANTES, t)
+                                    ) : (
+                                      <Typography color="textSecondary" variant="caption">
+                                        Sin fotos de antes
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                  <Box>
+                                    <Typography variant="body2" fontWeight="bold" color="#a36920">
+                                      DESPUÉS
+                                    </Typography>
+                                    {tieneFotosDespues ? (
+                                      renderMiniaturas(CAMPOS_FOTOS_DESPUES, t)
+                                    ) : (
+                                      <Typography color="textSecondary" variant="caption">
+                                        Sin fotos del después
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                  {tieneFotosLegacy && (
+                                    <Box>
+                                      <Typography variant="body2" fontWeight="bold" color="#a36920">
+                                        Galería previa
+                                      </Typography>
+                                      {renderMiniaturas(CAMPOS_FOTOS_LEGACY, t)}
+                                    </Box>
+                                  )}
                                 </Box>
+                              )}
+
+                              {tratamientoSeleccionado === t.id ? (
+                                <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                                  <Box>
+                                    <Typography variant="body2" fontWeight="bold" color="#a36920" sx={{ mb: 0.5 }}>
+                                      Subir fotos de ANTES (máx. 3)
+                                    </Typography>
+                                    <input
+                                      type="file"
+                                      multiple
+                                      accept="image/*"
+                                      onClick={(e) => (e.target.value = null)}
+                                      onChange={manejarCambioFotos("antes")}
+                                    />
+                                    {previewsAntes.length > 0 && (
+                                      <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
+                                        {previewsAntes.map((src, idx) => (
+                                          <img
+                                            key={`antes-${idx}`}
+                                            src={src}
+                                            alt="preview antes"
+                                            width={70}
+                                            style={{ borderRadius: "6px", border: "1px solid #ccc" }}
+                                          />
+                                        ))}
+                                      </Box>
+                                    )}
+                                  </Box>
+
+                                  <Box>
+                                    <Typography variant="body2" fontWeight="bold" color="#a36920" sx={{ mb: 0.5 }}>
+                                      Subir fotos de DESPUÉS (máx. 3)
+                                    </Typography>
+                                    <input
+                                      type="file"
+                                      multiple
+                                      accept="image/*"
+                                      onClick={(e) => (e.target.value = null)}
+                                      onChange={manejarCambioFotos("despues")}
+                                    />
+                                    {previewsDespues.length > 0 && (
+                                      <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
+                                        {previewsDespues.map((src, idx) => (
+                                          <img
+                                            key={`despues-${idx}`}
+                                            src={src}
+                                            alt="preview después"
+                                            width={70}
+                                            style={{ borderRadius: "6px", border: "1px solid #ccc" }}
+                                          />
+                                        ))}
+                                      </Box>
+                                    )}
+                                  </Box>
+
+                                  <Button
+                                    variant="outlined"
+                                    size="small"
+                                    sx={{
+                                      mt: 0.5,
+                                      color: "#a36920",
+                                      borderColor: "#a36920",
+                                      alignSelf: "flex-start",
+                                    }}
+                                    onClick={() => subirFotos(t.id)}
+                                  >
+                                    💾 Guardar Fotos
+                                  </Button>
+                                </Box>
+                              ) : (
                                 <Button
-                                  variant="outlined"
+                                  variant="text"
                                   size="small"
                                   sx={{
-                                    mt: 1,
                                     color: "#a36920",
-                                    borderColor: "#a36920",
+                                    textTransform: "none",
                                   }}
-                                  onClick={() => subirFotos(t.id)}
+                                  onClick={() => setTratamientoSeleccionado(t.id)}
                                 >
-                                  💾 Guardar Fotos
+                                  {tieneFotos ? "📸 Actualizar fotos" : "📸 Agregar fotos"}
                                 </Button>
-                              </Box>
-                            ) : (
-                              <Button
-                                variant="text"
-                                size="small"
-                                sx={{
-                                  color: "#a36920",
-                                  textTransform: "none",
-                                }}
-                                onClick={() => setTratamientoSeleccionado(t.id)}
-                              >
-                                📸 Agregar fotos
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
 

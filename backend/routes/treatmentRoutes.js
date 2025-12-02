@@ -15,7 +15,7 @@ router.use(bodyParser.json());
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = "./uploads";
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
   filename: (req, file, cb) => {
@@ -83,7 +83,7 @@ router.get("/marcas", (req, res) => {
    💉 REGISTRO DE TRATAMIENTOS REALIZADOS
 ============================== */
 
-router.post("/realizado", upload.array("fotos", 3), (req, res) => {
+router.post("/realizado", upload.array("fotos", 6), (req, res) => {
   try {
     const { paciente_id, productos, pagoMetodo, sesion, especialista, tipoAtencion } = req.body;
     const productosData = JSON.parse(productos);
@@ -104,7 +104,7 @@ router.post("/realizado", upload.array("fotos", 3), (req, res) => {
 
       db.run(
         `
-        INSERT INTO tratamientos_realizados 
+        INSERT INTO tratamientos_realizados
         (paciente_id, tratamiento_id, productos, cantidad_total, precio_total, descuento, pagoMetodo, especialista, sesion, tipoAtencion, fecha)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
@@ -151,31 +151,52 @@ router.post("/realizado", upload.array("fotos", 3), (req, res) => {
    📸 SUBIR FOTOS DEL TRATAMIENTO
 ============================== */
 
-router.post("/subir-fotos/:id", upload.array("fotos", 3), (req, res) => {
-  const { id } = req.params;
-  const files = req.files;
+router.post(
+  "/subir-fotos/:id",
+  upload.fields([
+    { name: "fotosAntes", maxCount: 3 },
+    { name: "fotosDespues", maxCount: 3 },
+    // Compatibilidad con el formato anterior (un solo array "fotos")
+    { name: "fotos", maxCount: 6 },
+  ]),
+  (req, res) => {
+    const { id } = req.params;
+    const archivosAntes = req.files?.fotosAntes || [];
+    const archivosDespues = req.files?.fotosDespues || [];
 
-  if (!files || files.length === 0)
-    return res.status(400).json({ message: "No se han subido imágenes" });
-
-  const foto_izquierda = files[0]?.filename || null;
-  const foto_frontal = files[1]?.filename || null;
-  const foto_derecha = files[2]?.filename || null;
-
-  db.run(
-    `UPDATE tratamientos_realizados 
-     SET foto_izquierda = ?, foto_frontal = ?, foto_derecha = ?
-     WHERE id = ?`,
-    [foto_izquierda, foto_frontal, foto_derecha, id],
-    function (err) {
-      if (err) {
-        console.error("❌ Error al guardar fotos:", err.message);
-        return res.status(500).json({ message: "Error al guardar fotos" });
-      }
-      res.json({ message: "✅ Fotos guardadas correctamente" });
+    // Soportar cargas antiguas en un único campo "fotos"
+    const archivosLegacy = req.files?.fotos || [];
+    if (!archivosAntes.length && !archivosDespues.length && archivosLegacy.length) {
+      archivosAntes.push(...archivosLegacy.slice(0, 3));
+      archivosDespues.push(...archivosLegacy.slice(3, 6));
     }
-  );
-});
+
+    if (!archivosAntes.length && !archivosDespues.length) {
+      return res.status(400).json({ message: "No se han subido imágenes" });
+    }
+
+    const camposAntes = ["foto_antes1", "foto_antes2", "foto_antes3"];
+    const camposDespues = ["foto_despues1", "foto_despues2", "foto_despues3"];
+
+    const fotosAntes = camposAntes.map((_, idx) => archivosAntes[idx]?.filename || null);
+    const fotosDespues = camposDespues.map((_, idx) => archivosDespues[idx]?.filename || null);
+
+    db.run(
+      `UPDATE tratamientos_realizados
+       SET foto_antes1 = ?, foto_antes2 = ?, foto_antes3 = ?,
+           foto_despues1 = ?, foto_despues2 = ?, foto_despues3 = ?
+       WHERE id = ?`,
+      [...fotosAntes, ...fotosDespues, id],
+      function (err) {
+        if (err) {
+          console.error("❌ Error al guardar fotos:", err.message);
+          return res.status(500).json({ message: "Error al guardar fotos" });
+        }
+        res.json({ message: "✅ Fotos guardadas correctamente" });
+      }
+    );
+  }
+);
 
 /* ==============================
    📋 HISTORIAL CLÍNICO

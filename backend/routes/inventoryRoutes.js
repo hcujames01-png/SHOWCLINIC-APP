@@ -45,7 +45,7 @@ router.post("/crear", (req, res) => {
   }
 
   const query = `
-    INSERT INTO inventario 
+    INSERT INTO inventario
       (producto, marca, sku, proveedor, contenido, precio, stock, fechaVencimiento, ultima_actualizacion, actualizado_por)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-5 hours'), ?)
   `;
@@ -77,12 +77,37 @@ router.post("/crear", (req, res) => {
    📋 LISTAR PRODUCTOS
 ============================================== */
 router.get("/listar", (req, res) => {
-  db.all("SELECT * FROM inventario ORDER BY id DESC", [], (err, rows) => {
+  db.all("SELECT * FROM inventario ORDER BY id DESC", [], (err, productos) => {
     if (err) {
       console.error("❌ Error al listar productos:", err.message);
       return res.status(500).json({ message: "Error al listar productos" });
     }
-    res.json(rows);
+
+    db.all(
+      `SELECT inventario_id, archivo, uploaded_at FROM inventario_documentos ORDER BY uploaded_at DESC`,
+      [],
+      (docsErr, docs) => {
+        if (docsErr) {
+          console.error("❌ Error al listar documentos:", docsErr.message);
+          return res
+            .status(500)
+            .json({ message: "Error al listar documentos de inventario" });
+        }
+
+        const documentosPorProducto = docs.reduce((acc, doc) => {
+          if (!acc[doc.inventario_id]) acc[doc.inventario_id] = [];
+          acc[doc.inventario_id].push(doc);
+          return acc;
+        }, {});
+
+        const respuesta = productos.map((p) => ({
+          ...p,
+          documentos: documentosPorProducto[p.id] || [],
+        }));
+
+        res.json(respuesta);
+      }
+    );
   });
 });
 
@@ -104,15 +129,15 @@ router.put("/editar/:id", (req, res) => {
   } = req.body;
 
   const query = `
-    UPDATE inventario SET 
-      producto = ?, 
-      marca = ?, 
-      sku = ?, 
-      proveedor = ?, 
-      contenido = ?, 
-      precio = ?, 
-      stock = ?, 
-      fechaVencimiento = ?, 
+    UPDATE inventario SET
+      producto = ?,
+      marca = ?,
+      sku = ?,
+      proveedor = ?,
+      contenido = ?,
+      precio = ?,
+      stock = ?,
+      fechaVencimiento = ?,
       ultima_actualizacion = datetime('now', '-5 hours'),
       actualizado_por = ?
     WHERE id = ?
@@ -150,21 +175,43 @@ router.post("/subir-pdf/:id", upload.single("documento"), (req, res) => {
   if (!req.file)
     return res.status(400).json({ message: "No se subió ningún archivo PDF" });
 
-  db.run(
-    `
-    UPDATE inventario 
-    SET documento_pdf = ?, ultima_actualizacion = datetime('now', '-5 hours')
-    WHERE id = ?
-  `,
-    [req.file.filename, id],
-    function (err) {
-      if (err) {
-        console.error("❌ Error al guardar PDF:", err.message);
-        return res.status(500).json({ message: "Error al guardar PDF" });
+  db.serialize(() => {
+    db.run(
+      `
+        INSERT INTO inventario_documentos (inventario_id, archivo, uploaded_at)
+        VALUES (?, ?, datetime('now', '-5 hours'))
+      `,
+      [id, req.file.filename],
+      function (insertErr) {
+        if (insertErr) {
+          console.error("❌ Error al guardar PDF:", insertErr.message);
+          return res.status(500).json({ message: "Error al guardar PDF" });
+        }
+
+        db.run(
+          `
+            UPDATE inventario
+            SET documento_pdf = ?, ultima_actualizacion = datetime('now', '-5 hours')
+            WHERE id = ?
+          `,
+          [req.file.filename, id],
+          function (updateErr) {
+            if (updateErr) {
+              console.error("❌ Error al vincular PDF:", updateErr.message);
+              return res
+                .status(500)
+                .json({ message: "Error al vincular PDF con el producto" });
+            }
+
+            res.json({
+              message: "✅ Documento PDF guardado correctamente",
+              archivo: req.file.filename,
+            });
+          }
+        );
       }
-      res.json({ message: "✅ Documento PDF guardado correctamente" });
-    }
-  );
+    );
+  });
 });
 
 /* ==============================================
@@ -182,3 +229,4 @@ router.delete("/eliminar/:id", (req, res) => {
 });
 
 export default router;
+

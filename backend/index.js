@@ -9,6 +9,7 @@ import treatmentRoutes from "./routes/treatmentRoutes.js";
 import inventoryRoutes from "./routes/inventoryRoutes.js";
 import especialistasRoutes from "./routes/especialistas.js";
 import finanzasRoutes from "./routes/finanzasRoutes.js";
+import bcrypt from "bcryptjs";
 
 const app = express();
 app.use(cors());
@@ -33,6 +34,24 @@ const db = new sqlite3.Database("./db/showclinic.db", (err) => {
         role TEXT
       )
     `);
+     db.get(`SELECT COUNT(*) as count FROM users`, (userErr, row) => {
+      if (userErr) {
+        console.error("❌ Error verificando usuarios:", userErr.message);
+      } else if (row?.count === 0) {
+        const hash = bcrypt.hashSync("admin123", 10);
+        db.run(
+          `INSERT INTO users (username, password, role) VALUES (?, ?, ?)`,
+          ["admin", hash, "doctor"],
+          (insertErr) => {
+            if (insertErr) {
+              console.error("❌ Error creando usuario por defecto:", insertErr.message);
+            } else {
+              console.log("✅ Usuario por defecto creado: admin / admin123");
+            }
+          }
+        );
+      }
+    });
 
     // 🧱 Tabla de pacientes
     db.run(`
@@ -87,11 +106,53 @@ const db = new sqlite3.Database("./db/showclinic.db", (err) => {
         foto_izquierda TEXT,
         foto_frontal TEXT,
         foto_derecha TEXT,
+        foto_extra1 TEXT,
+        foto_extra2 TEXT,
+        foto_extra3 TEXT,
+        foto_antes1 TEXT,
+        foto_antes2 TEXT,
+        foto_antes3 TEXT,
+        foto_despues1 TEXT,
+        foto_despues2 TEXT,
+        foto_despues3 TEXT,
         fecha TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(paciente_id) REFERENCES patients(id),
         FOREIGN KEY(tratamiento_id) REFERENCES tratamientos(id)
       )
     `);
+
+    const ensureColumnExists = (table, column, definition) => {
+      db.all(`PRAGMA table_info(${table})`, (err, rows) => {
+        if (err) {
+          console.error(`Error verificando columna ${column} en ${table}:`, err);
+          return;
+        }
+        const exists = rows.some((col) => col.name === column);
+        if (!exists) {
+          db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`, (err) => {
+            if (err) {
+              console.error(`Error agregando columna ${column} a ${table}:`, err);
+            } else {
+              console.log(`Columna ${column} agregada a ${table}`);
+            }
+          });
+        }
+      });
+    };
+
+    [
+      ["foto_extra1", "TEXT"],
+      ["foto_extra2", "TEXT"],
+      ["foto_extra3", "TEXT"],
+      ["foto_antes1", "TEXT"],
+      ["foto_antes2", "TEXT"],
+      ["foto_antes3", "TEXT"],
+      ["foto_despues1", "TEXT"],
+      ["foto_despues2", "TEXT"],
+      ["foto_despues3", "TEXT"],
+    ].forEach(([column, definition]) =>
+      ensureColumnExists("tratamientos_realizados", column, definition)
+    );
 
     // 🧱 Tabla de inventario
     db.run(`
@@ -101,9 +162,32 @@ const db = new sqlite3.Database("./db/showclinic.db", (err) => {
         marca TEXT,
         sku TEXT,
         proveedor TEXT,
+        contenido TEXT,
         precio REAL,
         stock INTEGER,
-        fechaVencimiento TEXT
+        fechaVencimiento TEXT,
+        ultima_actualizacion TEXT,
+        actualizado_por TEXT,
+        documento_pdf TEXT
+      )
+    `);
+
+    [
+      ["contenido", "TEXT"],
+      ["ultima_actualizacion", "TEXT"],
+      ["actualizado_por", "TEXT"],
+      ["documento_pdf", "TEXT"],
+    ].forEach(([column, definition]) =>
+      ensureColumnExists("inventario", column, definition)
+    );
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS inventario_documentos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inventario_id INTEGER NOT NULL,
+        archivo TEXT NOT NULL,
+        uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(inventario_id) REFERENCES inventario(id)
       )
     `);
 
