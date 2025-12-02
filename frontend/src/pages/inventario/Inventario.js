@@ -235,23 +235,44 @@ export default function Inventario() {
 
                 {/* 📎 PDF del producto */}
                 <TableCell>
-                  {p.documento_pdf ? (
-                    <Tooltip title="Ver documento">
-                      <a
-                        href={`http://localhost:4000/uploads/docs/${p.documento_pdf}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <PictureAsPdfIcon sx={{ color: "#a36920", fontSize: 28 }} />
-                      </a>
-                    </Tooltip>
-                  ) : role === "doctor" ? (
+                  {p.documentos && p.documentos.length > 0 ? (
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                      {p.documentos.map((doc, idx) => (
+                        <Box
+                          key={`${doc.archivo}-${idx}`}
+                          sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                        >
+                          <Tooltip
+                            title={`Ver guía (${doc.uploaded_at?.split(" ")[0] || ""})`}
+                          >
+                            <a
+                              href={`http://localhost:4000/uploads/docs/${doc.archivo}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <PictureAsPdfIcon
+                                sx={{ color: "#a36920", fontSize: 28 }}
+                              />
+                            </a>
+                          </Tooltip>
+                          <Typography variant="caption" color="textSecondary">
+                            {doc.uploaded_at?.split(" ")[0] || "Guía"}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  ) : (
+                    <Typography color="textSecondary">—</Typography>
+                  )}
+
+                  {role === "doctor" && (
                     <label
                       style={{
                         display: "inline-block",
                         color: "#a36920",
                         cursor: "pointer",
                         fontWeight: "bold",
+                        marginTop: 4,
                       }}
                     >
                       📎 Subir PDF
@@ -262,8 +283,6 @@ export default function Inventario() {
                         onChange={(e) => subirPDF(p.id, e.target.files[0])}
                       />
                     </label>
-                  ) : (
-                    <Typography color="textSecondary">—</Typography>
                   )}
                 </TableCell>
 
