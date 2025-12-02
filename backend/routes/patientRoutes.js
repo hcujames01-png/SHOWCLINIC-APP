@@ -36,6 +36,7 @@ router.put("/editar/:id", (req, res) => {
     drogas,
     tabaco,
     alcohol,
+    numeroHijos,
     referencia,
   } = req.body;
 
@@ -45,7 +46,7 @@ router.put("/editar/:id", (req, res) => {
     UPDATE patients
     SET dni=?, nombre=?, apellido=?, edad=?, sexo=?, direccion=?, ocupacion=?,
         fechaNacimiento=?, ciudadNacimiento=?, ciudadResidencia=?, alergias=?, enfermedad=?,
-        correo=?, celular=?, cirugiaEstetica=?, drogas=?, tabaco=?, alcohol=?, referencia=?
+        correo=?, celular=?, cirugiaEstetica=?, drogas=?, tabaco=?, alcohol=?, numeroHijos=?, referencia=?
     WHERE id=?
   `;
 
@@ -70,6 +71,7 @@ router.put("/editar/:id", (req, res) => {
       drogas,
       tabaco,
       alcohol,
+      numeroHijos,
       referencia,
       id,
     ],
@@ -105,6 +107,7 @@ router.post("/registrar", (req, res) => {
     drogas,
     tabaco,
     alcohol,
+    numeroHijos,
     referencia,
   } = req.body;
 
@@ -113,8 +116,8 @@ router.post("/registrar", (req, res) => {
       dni, nombre, apellido, edad, sexo, direccion, ocupacion,
       fechaNacimiento, ciudadNacimiento, ciudadResidencia,
       alergias, enfermedad, correo, celular,
-      cirugiaEstetica, drogas, tabaco, alcohol, referencia
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      cirugiaEstetica, drogas, tabaco, alcohol, numeroHijos, referencia
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `;
 
   db.run(
@@ -138,6 +141,7 @@ router.post("/registrar", (req, res) => {
       drogas,
       tabaco,
       alcohol,
+      numeroHijos,
       referencia,
     ],
     function (err) {

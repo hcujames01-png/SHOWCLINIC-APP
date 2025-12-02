@@ -161,6 +161,7 @@ const HistorialClinico = () => {
       ["Tabaco", p.tabaco || "No"],
       ["Alcohol", p.alcohol || "No"],
       ["Drogas", p.drogas || "No"],
+      ["Número de hijos", p.numeroHijos ?? "No registrado"],
       ["Referencia", p.referencia || "No especificada"],
     ];
 
@@ -361,6 +362,7 @@ const HistorialClinico = () => {
                   <Typography><strong>Consume tabaco:</strong> {pacienteSeleccionado.tabaco || "No"}</Typography>
                   <Typography><strong>Consume alcohol:</strong> {pacienteSeleccionado.alcohol || "No"}</Typography>
                   <Typography><strong>Consume drogas:</strong> {pacienteSeleccionado.drogas || "No"}</Typography>
+                  <Typography><strong>Número de hijos:</strong> {pacienteSeleccionado.numeroHijos ?? "No registrado"}</Typography>
                   <Typography><strong>Referencia:</strong> {pacienteSeleccionado.referencia || "No especificada"}</Typography>
                 </Grid>
               </Grid>

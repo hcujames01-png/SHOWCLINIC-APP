@@ -31,6 +31,7 @@ export default function RegistrarPaciente() {
     drogas: "",
     tabaco: "",
     alcohol: "",
+    numeroHijos: "",
     referencia: "",
   });
 
@@ -266,6 +267,18 @@ export default function RegistrarPaciente() {
               <MenuItem value="Otro">Otro</MenuItem>
             </TextField>
           </Grid>
+
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField
+              label="Número de hijos"
+              name="numeroHijos"
+              type="number"
+              value={formData.numeroHijos}
+              onChange={handleChange}
+              fullWidth
+              inputProps={{ min: 0 }}
+            />
+          </Grid>
         </Grid>
 
         <Box textAlign="center" mt={3}>
@@ -310,6 +323,7 @@ export default function RegistrarPaciente() {
           drogas: "",
           tabaco: "",
           alcohol: "",
+          numeroHijos: "",
           referencia: "",
         });
       } else {

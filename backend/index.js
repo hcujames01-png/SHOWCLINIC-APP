@@ -113,10 +113,14 @@ const db = new sqlite3.Database(dbPath, (err) => {
         drogas TEXT,
         tabaco TEXT,
         alcohol TEXT,
+        numeroHijos INTEGER,
         referencia TEXT,
         fechaRegistro TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Añadir columna de número de hijos si falta
+    ensureColumnExists("patients", "numeroHijos", "INTEGER");
 
     // 🧱 Tabla de tratamientos base
     db.run(`
